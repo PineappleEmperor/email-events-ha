@@ -1,3 +1,7 @@
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
 [tool.pylint.MAIN]
 py-version = "3.13"
 # Use a conservative default here; 2 should speed up most setups and not hurt
@@ -595,7 +599,7 @@ split-on-trailing-comma = false
 
 # Temporary
 "homeassistant/**" = ["PTH"]
-"tests/**" = ["PTH"]
+"tests/**" = ["PTH", "SLF001", "TID251"]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 25

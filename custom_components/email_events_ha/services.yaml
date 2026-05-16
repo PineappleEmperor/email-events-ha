@@ -1,0 +1,82 @@
+create_schema:
+  name: Create Schema
+  description: Create a new user-defined email parsing schema.
+  fields:
+    schema_id:
+      name: Schema ID
+      description: Unique identifier for the schema (cannot match a built-in schema name).
+      required: true
+      example: "my_clinic"
+      selector:
+        text:
+    label:
+      name: Label
+      description: Human-readable name shown in the UI.
+      required: false
+      example: "My Clinic"
+      selector:
+        text:
+    patterns:
+      name: Patterns
+      description: >
+        List of regex patterns with named groups: (?P<date>…), (?P<time>…),
+        (?P<end_time>…), (?P<location>…). First match wins; falls back to generic
+        fuzzy extraction if no pattern matches.
+      required: false
+      example: '["seeing you on (?P<date>\\d{1,2}\\s+\\w+\\s+\\d{4})"]'
+      selector:
+        object:
+
+update_schema:
+  name: Update Schema
+  description: Update an existing user-defined schema.
+  fields:
+    schema_id:
+      name: Schema ID
+      description: ID of the user schema to update.
+      required: true
+      selector:
+        text:
+    label:
+      name: Label
+      description: New human-readable name (omit to keep existing).
+      required: false
+      selector:
+        text:
+    patterns:
+      name: Patterns
+      description: Replacement pattern list (omit to keep existing).
+      required: false
+      selector:
+        object:
+
+delete_schema:
+  name: Delete Schema
+  description: Delete a user-defined schema.
+  fields:
+    schema_id:
+      name: Schema ID
+      description: ID of the user schema to delete.
+      required: true
+      selector:
+        text:
+
+list_schemas:
+  name: List Schemas
+  description: Return all schemas (built-in and user-defined) with extraction statistics.
+
+reload_schemas:
+  name: Reload Schemas
+  description: Reload user schemas from storage and restart all Email Events HA entries.
+
+reset_stats:
+  name: Reset Stats
+  description: Reset extraction statistics for a sender, or all senders if omitted.
+  fields:
+    sender:
+      name: Sender
+      description: Sender email address or schema key to reset (leave empty to reset all).
+      required: false
+      example: "noreply@specsavers.com"
+      selector:
+        text:

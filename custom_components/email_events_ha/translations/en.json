@@ -1,0 +1,47 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Email Events HA",
+        "description": "Select the Email HA account to monitor. Optionally restrict to specific sender addresses.",
+        "data": {
+          "email_ha_entry_id": "Email HA account",
+          "sender_filter": "Sender filter (comma-separated emails, leave empty for all)"
+        }
+      }
+    },
+    "abort": {
+      "no_email_ha_entries": "No Email HA accounts configured. Set up Email HA first.",
+      "already_configured": "Already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Email Events HA options",
+        "description": "Current sender rules:\n{rules}",
+        "data": {
+          "sender_filter": "Sender filter (comma-separated emails, leave empty for all)",
+          "action": "Action"
+        }
+      },
+      "add_rule": {
+        "title": "Add sender rule",
+        "description": "Map a sender email address to a specific parsing schema.",
+        "data": {
+          "sender": "Sender email address",
+          "schema": "Parsing schema"
+        }
+      },
+      "remove_rule": {
+        "title": "Remove sender rule",
+        "data": {
+          "rule_index": "Rule to remove"
+        }
+      }
+    },
+    "error": {
+      "empty_sender": "Sender email address cannot be empty."
+    }
+  }
+}

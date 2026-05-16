@@ -1,0 +1,4 @@
+pytest
+pytest-asyncio
+pytest-homeassistant-custom-component
+python-dateutil>=2.8
