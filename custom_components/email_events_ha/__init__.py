@@ -29,6 +29,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await stats_store.async_load()
         hass.data[DOMAIN]["stats_store"] = stats_store
 
+    hass.data[DOMAIN].setdefault("last_event", None)
+    hass.data[DOMAIN].setdefault("last_calendar_change", None)
+
     await async_register_services(hass)
 
     coordinator = EmailEventsCoordinator(

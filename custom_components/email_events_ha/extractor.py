@@ -214,7 +214,13 @@ def extract_calendar_change(email_data: dict[str, Any]) -> CalendarChange | None
     if not start_dt and at_suffix:
         start_dt, end_dt = _extract_datetimes(at_suffix)
 
-    organizer = _parse_gcal_field(body, "organizer") or _parse_gcal_field(body, "who")
+    organizer = (
+        _parse_gcal_field(body, "organizer")
+        or _parse_gcal_field(body, "who")
+        or email_data.get("sender_name")
+        or sender_email
+        or None
+    )
     calendar_name = _parse_gcal_field(body, "calendar") or _extract_calendar_from_at_suffix(at_suffix)
     changed_by = (
         _parse_gcal_field(body, "changed by")

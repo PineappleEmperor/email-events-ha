@@ -25,6 +25,7 @@ def _make_coordinator(
 ) -> tuple[EmailEventsCoordinator, MagicMock]:
     """Build a coordinator with mocked hass and config entry."""
     hass = MagicMock()
+    hass.data = {"email_events_ha": {"last_event": None, "last_calendar_change": None}}
     hass.bus.async_listen = MagicMock(return_value=MagicMock())
     hass.config_entries.async_entries = MagicMock(
         return_value=[

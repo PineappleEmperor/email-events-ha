@@ -18,6 +18,7 @@ from .const import (
     CONF_SENDER_RULES,
     CONFIDENCE_HIGH,
     CONFIDENCE_LOW,
+    DOMAIN,
     EMAIL_HA_CONF_EMAIL,
     EMAIL_HA_DOMAIN,
     EMAIL_HA_EVENT_NEW_EMAIL,
@@ -57,8 +58,9 @@ class EmailEventsCoordinator:
         self._entry = entry
         self._schema_store = schema_store
         self._stats_store = stats_store
-        self.last_event: DetectedEvent | None = None
-        self.last_calendar_change: CalendarChange | None = None
+        domain_data: dict = hass.data.get(DOMAIN, {})
+        self.last_event: DetectedEvent | None = domain_data.get("last_event")
+        self.last_calendar_change: CalendarChange | None = domain_data.get("last_calendar_change")
         self._listeners: list[Callable[[], None]] = []
         self._unsubscribe: Callable[[], None] | None = None
         self._monitored_email: str | None = None
@@ -152,6 +154,7 @@ class EmailEventsCoordinator:
                 await self._stats_store.async_record(SCHEMA_GCAL, CONFIDENCE_HIGH, bool(change))
             if change:
                 self.last_calendar_change = change
+                self.hass.data[DOMAIN]["last_calendar_change"] = change
                 _LOGGER.debug("Calendar change extracted: %s (%s)", change.event_title, change.change_type)
                 self.notify_listeners()
         else:
@@ -162,6 +165,7 @@ class EmailEventsCoordinator:
                 await self._stats_store.async_record(sender_email, confidence, bool(detected))
             if detected:
                 self.last_event = detected
+                self.hass.data[DOMAIN]["last_event"] = detected
                 _LOGGER.debug("Event extracted: %s (confidence=%s)", detected.title, detected.confidence)
                 self.notify_listeners()
 
