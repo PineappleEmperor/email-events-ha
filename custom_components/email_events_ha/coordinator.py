@@ -30,6 +30,7 @@ from .extractor import (
     DetectedEvent,
     extract_calendar_change,
     extract_event,
+    is_gcal_subject,
 )
 from .storage import SchemaStore, StatsStore
 
@@ -131,7 +132,9 @@ class EmailEventsCoordinator:
         if not uid:
             return
 
-        gcal = sender_email in _GCAL_AUTO_SENDERS
+        gcal_sender = sender_email in _GCAL_AUTO_SENDERS
+        subject: str = (data.get("subject") or "").strip()
+        gcal = gcal_sender or is_gcal_subject(subject)
 
         if not gcal and self._sender_filter and sender_email not in self._sender_filter:
             _LOGGER.debug("Skipping email from %s (not in sender filter)", sender_email)

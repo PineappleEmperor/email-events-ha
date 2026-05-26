@@ -20,6 +20,7 @@ from custom_components.email_events_ha.extractor import (
     extract_calendar_change,
     extract_event,
     is_gcal_notification,
+    is_gcal_subject,
 )
 
 # ---------------------------------------------------------------------------
@@ -36,6 +37,20 @@ def test_gcal_sender_detected() -> None:
 def test_non_gcal_sender_rejected() -> None:
     """Non-GCal sender returns False."""
     assert is_gcal_notification("noreply@specsavers.com") is False
+
+
+def test_gcal_subject_detected() -> None:
+    """GCal-style subjects recognised regardless of sender."""
+    assert is_gcal_subject("New event: Team lunch @ Fri 30 May") is True
+    assert is_gcal_subject("Canceled event: Team lunch @ Fri 30 May") is True
+    assert is_gcal_subject("Updated invitation: Sprint review @ Thu") is True
+    assert is_gcal_subject("Accepted: Weekly sync @ Mon") is True
+
+
+def test_gcal_subject_rejected() -> None:
+    """Non-GCal subjects return False."""
+    assert is_gcal_subject("Your appointment is confirmed") is False
+    assert is_gcal_subject("Booking confirmation for Dan") is False
 
 
 # ---------------------------------------------------------------------------

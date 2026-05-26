@@ -110,6 +110,12 @@ def is_gcal_notification(sender_email: str) -> bool:
     return sender_email.lower() in GCAL_NOTIFICATION_SENDERS
 
 
+def is_gcal_subject(subject: str) -> bool:
+    """Return True if subject matches a known Google Calendar notification pattern."""
+    s = subject.strip()
+    return any(p.match(s) for p, _ in _GCAL_SUBJECT_PATTERNS)
+
+
 def extract_event(
     email_data: dict[str, Any],
     schema: str = SCHEMA_GENERIC,
