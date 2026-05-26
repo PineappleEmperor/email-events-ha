@@ -24,6 +24,9 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
+_ICS_DTSTART_RE = re.compile(r"^DTSTART(?:;[^:]+)?:(.+)$", re.MULTILINE)
+_ICS_DTEND_RE = re.compile(r"^DTEND(?:;[^:]+)?:(.+)$", re.MULTILINE)
+
 _YEAR_RE = re.compile(r"\b20\d{2}\b")
 _TIME_RANGE_RE = re.compile(r"\b(\d{1,2}:\d{2})\s*[-–]\s*(\d{1,2}:\d{2})\b")
 _TIME_RE = re.compile(r"\b\d{1,2}:\d{2}\b")
@@ -116,6 +119,8 @@ def extract_event(
 
     title = _clean_subject(subject)
 
+    ics_start, ics_end = _parse_ics_datetimes(body)
+
     resolved_patterns = patterns if patterns is not None else BUILTIN_SCHEMAS.get(schema, {}).get("patterns", [])
 
     schema_result: tuple[str | None, str | None, str | None] = (None, None, None)
@@ -124,7 +129,11 @@ def extract_event(
 
     if schema_result[0] is not None:
         start_dt, end_dt, schema_location = schema_result
+        end_dt = end_dt or ics_end
         location = schema_location or _extract_location(body)
+    elif ics_start:
+        start_dt, end_dt = ics_start, ics_end
+        location = _extract_location(body)
     else:
         start_dt, end_dt = _extract_datetimes(body)
         location = _extract_location(body)
@@ -201,6 +210,28 @@ def extract_calendar_change(email_data: dict[str, Any]) -> CalendarChange | None
         sent_datetime=sent_datetime,
         extracted_at=extracted_at,
     )
+
+
+def _parse_ics_datetimes(body: str) -> tuple[str | None, str | None]:
+    """Extract DTSTART/DTEND from an embedded VCALENDAR block in body text."""
+    if "BEGIN:VCALENDAR" not in body:
+        return None, None
+
+    def _ics_dt(raw: str) -> str | None:
+        val = raw.strip()
+        try:
+            if "T" in val:
+                naive = datetime.strptime(val.rstrip("Z"), "%Y%m%dT%H%M%S")
+                if val.endswith("Z"):
+                    return naive.replace(tzinfo=timezone.utc).isoformat()
+                return naive.isoformat()
+            return datetime.strptime(val, "%Y%m%d").date().isoformat() + "T00:00:00"
+        except ValueError:
+            return None
+
+    start_m = _ICS_DTSTART_RE.search(body)
+    end_m = _ICS_DTEND_RE.search(body)
+    return _ics_dt(start_m.group(1)) if start_m else None, _ics_dt(end_m.group(1)) if end_m else None
 
 
 def _clean_subject(subject: str) -> str:

@@ -16,6 +16,7 @@ from custom_components.email_events_ha.extractor import (
     _clean_subject,
     _extract_datetimes,
     _extract_location,
+    _parse_ics_datetimes,
     extract_calendar_change,
     extract_event,
     is_gcal_notification,
@@ -97,6 +98,80 @@ def test_extract_datetime_no_date() -> None:
     start, end = _extract_datetimes(body)
     assert start is None
     assert end is None
+
+
+# ---------------------------------------------------------------------------
+# _parse_ics_datetimes
+# ---------------------------------------------------------------------------
+
+
+def test_parse_ics_datetimes_utc() -> None:
+    """UTC DTSTART/DTEND parsed to ISO with timezone offset."""
+    body = (
+        "BEGIN:VCALENDAR\r\n"
+        "BEGIN:VEVENT\r\n"
+        "DTSTART:20260522T140000Z\r\n"
+        "DTEND:20260522T150000Z\r\n"
+        "END:VEVENT\r\n"
+        "END:VCALENDAR\r\n"
+    )
+    start, end = _parse_ics_datetimes(body)
+    assert start is not None and "2026-05-22" in start and "14:00:00" in start
+    assert end is not None and "2026-05-22" in end and "15:00:00" in end
+
+
+def test_parse_ics_datetimes_naive() -> None:
+    """Naive DTSTART without Z parsed correctly."""
+    body = (
+        "BEGIN:VCALENDAR\r\n"
+        "DTSTART;TZID=Europe/London:20260522T140000\r\n"
+        "DTEND;TZID=Europe/London:20260522T150000\r\n"
+        "END:VCALENDAR\r\n"
+    )
+    start, end = _parse_ics_datetimes(body)
+    assert start == "2026-05-22T14:00:00"
+    assert end == "2026-05-22T15:00:00"
+
+
+def test_parse_ics_datetimes_all_day() -> None:
+    """All-day DTSTART (date only) returns T00:00:00 sentinel."""
+    body = (
+        "BEGIN:VCALENDAR\r\n"
+        "DTSTART;VALUE=DATE:20260522\r\n"
+        "DTEND;VALUE=DATE:20260523\r\n"
+        "END:VCALENDAR\r\n"
+    )
+    start, end = _parse_ics_datetimes(body)
+    assert start == "2026-05-22T00:00:00"
+    assert end == "2026-05-23T00:00:00"
+
+
+def test_parse_ics_datetimes_no_vcalendar() -> None:
+    """Body without VCALENDAR returns (None, None)."""
+    assert _parse_ics_datetimes("Hello, your appointment is confirmed.") == (None, None)
+
+
+def test_extract_event_uses_ics_end_datetime() -> None:
+    """When body contains VCALENDAR, end_datetime is extracted from DTEND."""
+    body = (
+        "Your appointment is confirmed.\r\n"
+        "BEGIN:VCALENDAR\r\n"
+        "DTSTART:20260522T140000Z\r\n"
+        "DTEND:20260522T150000Z\r\n"
+        "END:VCALENDAR\r\n"
+    )
+    email: dict[str, Any] = {
+        "uid": "ics1",
+        "subject": "Appointment confirmed",
+        "sender_email": "noreply@clinic.com",
+        "sender_name": "The Clinic",
+        "date": "2026-05-20T10:00:00",
+        "body_text": body,
+    }
+    result = extract_event(email)
+    assert result is not None
+    assert result.end_datetime is not None
+    assert "15:00:00" in result.end_datetime
 
 
 # ---------------------------------------------------------------------------
