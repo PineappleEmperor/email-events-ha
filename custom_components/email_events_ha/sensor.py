@@ -7,10 +7,12 @@ from typing import Any
 
 from homeassistant.components.sensor import SensorEntity, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.restore_state import RestoreEntity
 
 from .const import (
     ATTR_CALENDAR_NAME,
@@ -76,7 +78,10 @@ def _device_info(entry: ConfigEntry) -> DeviceInfo:
     )
 
 
-class _BaseEventSensor(SensorEntity):
+_SKIP_RESTORE_ATTRS = frozenset({"friendly_name", "icon"})
+
+
+class _BaseEventSensor(SensorEntity, RestoreEntity):
     """Base sensor that updates when the coordinator notifies."""
 
     _attr_has_entity_name = True
@@ -93,11 +98,21 @@ class _BaseEventSensor(SensorEntity):
         self._attr_unique_id = f"{entry.entry_id}_{unique_suffix}"
         self._attr_device_info = _device_info(entry)
         self._remove_listener: Callable[[], None] | None = None
+        self._restored_state: str | None = None
+        self._restored_attrs: dict[str, Any] = {}
 
     async def async_added_to_hass(self) -> None:
         self._remove_listener = self._coordinator.async_add_listener(
             self._on_coordinator_update
         )
+        if (last := await self.async_get_last_state()) and last.state not in (
+            STATE_UNAVAILABLE,
+            STATE_UNKNOWN,
+        ):
+            self._restored_state = last.state
+            self._restored_attrs = {
+                k: v for k, v in last.attributes.items() if k not in _SKIP_RESTORE_ATTRS
+            }
 
     async def async_will_remove_from_hass(self) -> None:
         if self._remove_listener is not None:
@@ -123,14 +138,14 @@ class LastDetectedEventSensor(_BaseEventSensor):
     def native_value(self) -> str | None:
         """Return cleaned event title."""
         evt = self._coordinator.last_event
-        return evt.title if evt else None
+        return evt.title if evt else self._restored_state
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return extracted event details."""
         evt = self._coordinator.last_event
         if not evt:
-            return {}
+            return self._restored_attrs
         return {
             ATTR_START_DATETIME: evt.start_datetime,
             ATTR_END_DATETIME: evt.end_datetime,
@@ -159,14 +174,14 @@ class LastCalendarChangeSensor(_BaseEventSensor):
     def native_value(self) -> str | None:
         """Return the changed event title."""
         change = self._coordinator.last_calendar_change
-        return change.event_title if change else None
+        return change.event_title if change else self._restored_state
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return calendar change details."""
         change = self._coordinator.last_calendar_change
         if not change:
-            return {}
+            return self._restored_attrs
         return {
             ATTR_EVENT_TITLE: change.event_title,
             ATTR_CHANGE_TYPE: change.change_type,
