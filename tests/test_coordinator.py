@@ -217,7 +217,27 @@ async def test_handle_routes_booking_to_last_event(specsavers_email: Any) -> Non
     assert coordinator.last_calendar_change is None
 
 
-@pytest.mark.asyncio
+def test_resolve_name_mapped() -> None:
+    """Mapped email returns display name."""
+    coordinator, _ = _make_coordinator()
+    coordinator._name_map = {"dan@example.com": "Dan"}
+    assert coordinator._resolve_name("dan@example.com") == "Dan"
+    assert coordinator._resolve_name("DAN@EXAMPLE.COM") == "Dan"
+
+
+def test_resolve_name_unmapped_returns_email() -> None:
+    """Unmapped email returns raw email address."""
+    coordinator, _ = _make_coordinator()
+    coordinator._name_map = {}
+    assert coordinator._resolve_name("unknown@example.com") == "unknown@example.com"
+
+
+def test_resolve_name_none_returns_none() -> None:
+    """None input returns None."""
+    coordinator, _ = _make_coordinator()
+    assert coordinator._resolve_name(None) is None
+
+
 async def test_handle_skips_missing_uid() -> None:
     """Event without UID is silently skipped."""
     coordinator, _ = _make_coordinator()

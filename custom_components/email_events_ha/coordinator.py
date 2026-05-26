@@ -12,6 +12,9 @@ from homeassistant.exceptions import HomeAssistantError
 from .const import (
     BUILTIN_SCHEMAS,
     CONF_EMAIL_HA_ENTRY_ID,
+    CONF_EMAIL_NAMES,
+    CONF_NAME_DISPLAY,
+    CONF_NAME_EMAIL,
     CONF_RULE_SCHEMA,
     CONF_RULE_SENDER,
     CONF_SENDER_FILTER,
@@ -66,6 +69,7 @@ class EmailEventsCoordinator:
         self._monitored_email: str | None = None
         self._sender_filter: set[str] = set()
         self._sender_rules: list[dict[str, str]] = []
+        self._name_map: dict[str, str] = {}
 
     @property
     def sender_rules(self) -> list[dict[str, str]]:
@@ -89,6 +93,11 @@ class EmailEventsCoordinator:
             s.strip().lower() for s in raw_filter.split(",") if s.strip()
         }
         self._sender_rules = list(self._entry.options.get(CONF_SENDER_RULES, []))
+        self._name_map = {
+            n[CONF_NAME_EMAIL].lower(): n[CONF_NAME_DISPLAY]
+            for n in self._entry.options.get(CONF_EMAIL_NAMES, [])
+            if n.get(CONF_NAME_EMAIL) and n.get(CONF_NAME_DISPLAY)
+        }
 
         self._unsubscribe = self.hass.bus.async_listen(
             EMAIL_HA_EVENT_NEW_EMAIL,
@@ -153,6 +162,9 @@ class EmailEventsCoordinator:
             if self._stats_store:
                 await self._stats_store.async_record(SCHEMA_GCAL, CONFIDENCE_HIGH, bool(change))
             if change:
+                change.recipient_email = self._resolve_name(change.recipient_email)
+                change.changed_by = self._resolve_name(change.changed_by)
+                change.organizer = self._resolve_name(change.organizer)
                 self.last_calendar_change = change
                 self.hass.data[DOMAIN]["last_calendar_change"] = change
                 _LOGGER.debug("Calendar change extracted: %s (%s)", change.event_title, change.change_type)
@@ -164,10 +176,20 @@ class EmailEventsCoordinator:
                 confidence = detected.confidence if detected else CONFIDENCE_LOW
                 await self._stats_store.async_record(sender_email, confidence, bool(detected))
             if detected:
+                detected.organizer = self._resolve_name(detected.organizer)
                 self.last_event = detected
                 self.hass.data[DOMAIN]["last_event"] = detected
                 _LOGGER.debug("Event extracted: %s (confidence=%s)", detected.title, detected.confidence)
                 self.notify_listeners()
+
+    def _resolve_name(self, email: str | None) -> str | None:
+        """Return display name for an email address, or the raw email if unmapped."""
+        if not email:
+            return None
+        resolved = self._name_map.get(email.lower())
+        if resolved is None and email:
+            _LOGGER.info("Unrecognised identity %s — add to email name mappings", email)
+        return resolved or email
 
     def _schema_for_sender(self, sender_email: str) -> str:
         """Return configured schema name for a sender, defaulting to generic."""

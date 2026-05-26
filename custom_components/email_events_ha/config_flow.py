@@ -16,6 +16,9 @@ from homeassistant.core import HomeAssistant, callback
 
 from .const import (
     CONF_EMAIL_HA_ENTRY_ID,
+    CONF_EMAIL_NAMES,
+    CONF_NAME_DISPLAY,
+    CONF_NAME_EMAIL,
     CONF_RULE_SCHEMA,
     CONF_RULE_SENDER,
     CONF_SENDER_FILTER,
@@ -31,6 +34,8 @@ _LOGGER = logging.getLogger(__name__)
 _ACTION_SAVE = "save"
 _ACTION_ADD = "add_rule"
 _ACTION_REMOVE = "remove_rule"
+_ACTION_ADD_NAME = "add_name"
+_ACTION_REMOVE_NAME = "remove_name"
 
 
 def _email_ha_entry_options(hass: HomeAssistant) -> dict[str, str]:
@@ -98,6 +103,9 @@ class EmailEventsHAOptionsFlow(OptionsFlow):
         self._pending_rules: list[dict[str, str]] = list(
             config_entry.options.get(CONF_SENDER_RULES, [])
         )
+        self._pending_names: list[dict[str, str]] = list(
+            config_entry.options.get(CONF_EMAIL_NAMES, [])
+        )
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
@@ -110,11 +118,16 @@ class EmailEventsHAOptionsFlow(OptionsFlow):
                 return await self.async_step_add_rule()
             if action == _ACTION_REMOVE and self._pending_rules:
                 return await self.async_step_remove_rule()
+            if action == _ACTION_ADD_NAME:
+                return await self.async_step_add_name()
+            if action == _ACTION_REMOVE_NAME and self._pending_names:
+                return await self.async_step_remove_name()
             return self.async_create_entry(
                 title="",
                 data={
                     CONF_SENDER_FILTER: self._pending_filter,
                     CONF_SENDER_RULES: self._pending_rules,
+                    CONF_EMAIL_NAMES: self._pending_names,
                 },
             )
 
@@ -123,9 +136,20 @@ class EmailEventsHAOptionsFlow(OptionsFlow):
             for r in self._pending_rules
         ) or "None configured"
 
-        actions = {_ACTION_SAVE: "Save changes", _ACTION_ADD: "Add sender rule"}
+        names_desc = "\n".join(
+            f"• {n[CONF_NAME_EMAIL]} → {n[CONF_NAME_DISPLAY]}"
+            for n in self._pending_names
+        ) or "None configured"
+
+        actions = {
+            _ACTION_SAVE: "Save changes",
+            _ACTION_ADD: "Add sender rule",
+            _ACTION_ADD_NAME: "Add email name mapping",
+        }
         if self._pending_rules:
             actions[_ACTION_REMOVE] = "Remove a sender rule"
+        if self._pending_names:
+            actions[_ACTION_REMOVE_NAME] = "Remove a name mapping"
 
         return self.async_show_form(
             step_id="init",
@@ -135,7 +159,7 @@ class EmailEventsHAOptionsFlow(OptionsFlow):
                     vol.Required("action", default=_ACTION_SAVE): vol.In(actions),
                 }
             ),
-            description_placeholders={"rules": rules_desc},
+            description_placeholders={"rules": rules_desc, "names": names_desc},
         )
 
     async def async_step_add_rule(
@@ -192,5 +216,60 @@ class EmailEventsHAOptionsFlow(OptionsFlow):
             step_id="remove_rule",
             data_schema=vol.Schema(
                 {vol.Required("rule_index"): vol.In(rule_options)}
+            ),
+        )
+
+    async def async_step_add_name(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Add or update an email → display name mapping."""
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            email = user_input[CONF_NAME_EMAIL].strip().lower()
+            name = user_input[CONF_NAME_DISPLAY].strip()
+            if not email:
+                errors[CONF_NAME_EMAIL] = "empty_email"
+            elif not name:
+                errors[CONF_NAME_DISPLAY] = "empty_name"
+            else:
+                self._pending_names = [
+                    n for n in self._pending_names if n.get(CONF_NAME_EMAIL) != email
+                ]
+                self._pending_names.append({CONF_NAME_EMAIL: email, CONF_NAME_DISPLAY: name})
+                return await self.async_step_init()
+
+        return self.async_show_form(
+            step_id="add_name",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_NAME_EMAIL): str,
+                    vol.Required(CONF_NAME_DISPLAY): str,
+                }
+            ),
+            errors=errors,
+        )
+
+    async def async_step_remove_name(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Remove an existing email name mapping."""
+        if not self._pending_names:
+            return await self.async_step_init()
+
+        if user_input is not None:
+            idx = int(user_input["name_index"])
+            self._pending_names.pop(idx)
+            return await self.async_step_init()
+
+        name_options = {
+            str(i): f"{n[CONF_NAME_EMAIL]} → {n[CONF_NAME_DISPLAY]}"
+            for i, n in enumerate(self._pending_names)
+        }
+
+        return self.async_show_form(
+            step_id="remove_name",
+            data_schema=vol.Schema(
+                {vol.Required("name_index"): vol.In(name_options)}
             ),
         )
