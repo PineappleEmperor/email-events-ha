@@ -50,6 +50,10 @@ def test_non_gcal_sender_rejected() -> None:
         ("Your appointment is coming up", "appointment"),
         ("Booking Confirmation for Dan at Chameleons", "at Chameleons"),
         ("Normal subject with no prefix", "Normal subject"),
+        ("New event: Test @ Tue May 26, 2026 8pm", "Test"),
+        ("Invitation: Team standup @ Mon Jun 1", "Team standup"),
+        ("Updated invitation: Sprint planning @ Wed", "Sprint planning"),
+        ("Cancelled event: Friday drinks @ Fri", "Friday drinks"),
     ],
 )
 def test_clean_subject(subject: str, expected_contains: str) -> None:
@@ -98,6 +102,30 @@ def test_extract_datetime_no_date() -> None:
     start, end = _extract_datetimes(body)
     assert start is None
     assert end is None
+
+
+def test_extract_datetime_ampm_range() -> None:
+    """AM/PM time range like '8pm - 9pm' on a date line is parsed correctly."""
+    body = "When: Tue May 26, 2026 8pm - 9pm (BST)\n"
+    start, end = _extract_datetimes(body)
+    assert start is not None and "2026-05-26" in start and "20:00:00" in start
+    assert end is not None and "21:00:00" in end
+
+
+def test_extract_datetime_ampm_single() -> None:
+    """Single AM/PM time like '2:30pm' on a date line is parsed."""
+    body = "Appointment: 15 June 2026 at 2:30pm\n"
+    start, end = _extract_datetimes(body)
+    assert start is not None and "14:30:00" in start
+    assert end is None
+
+
+def test_extract_datetime_ampm_noon_midnight() -> None:
+    """12pm = noon (12:00), 12am = midnight (00:00)."""
+    body = "Event on 1 January 2026 12pm - 12am\n"
+    start, end = _extract_datetimes(body)
+    assert start is not None and "12:00:00" in start
+    assert end is not None and "00:00:00" in end
 
 
 # ---------------------------------------------------------------------------
@@ -204,6 +232,23 @@ def test_extract_location_none() -> None:
 # ---------------------------------------------------------------------------
 # extract_event — generic schema
 # ---------------------------------------------------------------------------
+
+
+def test_extract_event_gcal_invite_subject_fallback() -> None:
+    """GCal-style invite: date/time extracted from subject when body has none."""
+    email: dict[str, Any] = {
+        "uid": "gcalinvite1",
+        "subject": "New event: Test @ Tue May 26, 2026 8pm - 9pm (BST) (Kitty)",
+        "sender_email": "organizer@gmail.com",
+        "sender_name": "Dan",
+        "date": "2026-05-26T19:27:00",
+        "body_text": "Dan has invited you to this event.\n",
+    }
+    result = extract_event(email)
+    assert result is not None
+    assert result.title == "Test"
+    assert result.start_datetime is not None and "20:00:00" in result.start_datetime
+    assert result.end_datetime is not None and "21:00:00" in result.end_datetime
 
 
 def test_extract_event_generic_returns_none_without_date(specsavers_email: dict[str, Any]) -> None:

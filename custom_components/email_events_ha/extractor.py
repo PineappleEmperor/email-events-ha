@@ -30,6 +30,11 @@ _ICS_DTEND_RE = re.compile(r"^DTEND(?:;[^:]+)?:(.+)$", re.MULTILINE)
 _YEAR_RE = re.compile(r"\b20\d{2}\b")
 _TIME_RANGE_RE = re.compile(r"\b(\d{1,2}:\d{2})\s*[-–]\s*(\d{1,2}:\d{2})\b")
 _TIME_RE = re.compile(r"\b\d{1,2}:\d{2}\b")
+_AMPM_RANGE_RE = re.compile(
+    r"\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\s*[-–]\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b",
+    re.IGNORECASE,
+)
+_AMPM_TIME_RE = re.compile(r"\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b", re.IGNORECASE)
 _URL_RE = re.compile(r"https?://\S+")
 _UK_POSTCODE_RE = re.compile(r"\b[A-Z]{1,2}[0-9][0-9A-Z]?\s*[0-9][A-Z]{2}\b")
 
@@ -55,12 +60,13 @@ _GENERIC_TIME_FIRST_RE = re.compile(
 _SUBJECT_STRIP_PREFIX_RE = re.compile(
     r"^(?:booking\s+confirmation\s+for\s+\w+\s+|"
     r"appointment\s+confirmation\s+for\s+\w+\s+|"
+    r"(?:new\s+event|invitation|updated\s+invitation|cancelled\s+event|canceled\s+event|accepted):\s+|"
     r"\w+,\s+your\s+|"
     r"your\s+)",
     re.IGNORECASE,
 )
 _SUBJECT_STRIP_SUFFIX_RE = re.compile(
-    r"\s+(?:is\s+coming\s+up|reminder)\s*$",
+    r"\s+(?:is\s+coming\s+up|reminder|@\s+.+)\s*$",
     re.IGNORECASE,
 )
 
@@ -136,6 +142,8 @@ def extract_event(
         location = _extract_location(body)
     else:
         start_dt, end_dt = _extract_datetimes(body)
+        if not start_dt:
+            start_dt, end_dt = _extract_datetimes(subject)
         location = _extract_location(body)
 
     if not start_dt:
@@ -260,12 +268,20 @@ def _extract_datetimes(body: str) -> tuple[str | None, str | None]:
             continue
 
         td_m = _GENERIC_TIME_FIRST_RE.match(clean)
+        ampm_range_m = _AMPM_RANGE_RE.search(clean) if not td_m else None
+
         if td_m:
             try:
                 dt = dateutil_parser.parse(
                     f"{td_m.group('date')} {td_m.group('time')}", dayfirst=True
                 )
             except (ParserError, ValueError):
+                continue
+        elif ampm_range_m:
+            date_with_start = clean[: ampm_range_m.end(3)]
+            try:
+                dt = dateutil_parser.parse(date_with_start, dayfirst=True, fuzzy=True)
+            except (ParserError, OverflowError, ValueError):
                 continue
         else:
             try:
@@ -276,7 +292,7 @@ def _extract_datetimes(body: str) -> tuple[str | None, str | None]:
         if abs(dt.year - current_year) > 5:
             continue
 
-        has_time = bool(_TIME_RE.search(clean))
+        has_time = bool(_TIME_RE.search(clean)) or bool(ampm_range_m) or bool(_AMPM_TIME_RE.search(clean))
         score = 2 if has_time else 1
 
         if score <= best_score:
@@ -292,6 +308,20 @@ def _extract_datetimes(body: str) -> tuple[str | None, str | None]:
                     best_start = dt.replace(hour=sh, minute=sm, microsecond=0).isoformat()
                     best_end = dt.replace(hour=eh, minute=em, microsecond=0).isoformat()
                 except ValueError:
+                    best_start = dt.replace(microsecond=0).isoformat()
+                    best_end = None
+            elif ampm_range_m:
+                end_time_str = ampm_range_m.group(4)
+                if ampm_range_m.group(5):
+                    end_time_str += ":" + ampm_range_m.group(5)
+                end_time_str += ampm_range_m.group(6)
+                try:
+                    end_dt = dateutil_parser.parse(
+                        f"{dt.date().isoformat()} {end_time_str}", dayfirst=True
+                    )
+                    best_start = dt.replace(microsecond=0).isoformat()
+                    best_end = end_dt.replace(microsecond=0).isoformat()
+                except (ParserError, ValueError):
                     best_start = dt.replace(microsecond=0).isoformat()
                     best_end = None
             else:

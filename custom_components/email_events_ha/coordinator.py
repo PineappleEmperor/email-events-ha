@@ -200,4 +200,6 @@ class EmailEventsCoordinator:
             return None
 
         emails: list[dict[str, Any]] = (result or {}).get("emails", [])
+        if emails:
+            _LOGGER.debug("email_ha fields for uid=%s: %s", uid, list(emails[0].keys()))
         return emails[0] if emails else None
