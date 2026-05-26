@@ -410,3 +410,46 @@ def test_extract_calendar_change_unrecognised_subject() -> None:
         "body_text": "",
     }
     assert extract_calendar_change(email) is None
+
+
+def test_extract_calendar_change_subject_datetime() -> None:
+    """start/end extracted from subject @ suffix when body has no When: field."""
+    email: dict[str, Any] = {
+        "uid": "gcal2",
+        "subject": "Canceled event: Testing @ Tue May 26, 2026 9pm - 10pm (BST) (Kitty)",
+        "sender_email": "organizer@gmail.com",
+        "sender_name": "Dan",
+        "date": "2026-05-26T20:30:00",
+        "body_text": "This event has been cancelled.\n",
+    }
+    result = extract_calendar_change(email)
+    assert result is not None
+    assert result.event_title == "Testing"
+    assert result.change_type == "cancel"
+    assert result.start_datetime is not None and "21:00:00" in result.start_datetime
+    assert result.end_datetime is not None and "22:00:00" in result.end_datetime
+    assert result.calendar_name == "Kitty"
+    assert result.changed_by == "Dan"
+
+
+def test_extract_calendar_change_changed_by_fallback_email() -> None:
+    """changed_by falls back to sender_email when no name or body field."""
+    email: dict[str, Any] = {
+        "uid": "gcal3",
+        "subject": "New event: Standup @ Mon Jun 1, 2026 9am - 9:30am",
+        "sender_email": "alice@example.com",
+        "sender_name": None,
+        "date": None,
+        "body_text": "",
+    }
+    result = extract_calendar_change(email)
+    assert result is not None
+    assert result.changed_by == "alice@example.com"
+
+
+def test_extract_calendar_from_at_suffix_skips_tz() -> None:
+    """Timezone abbreviations skipped; calendar name is last non-tz paren."""
+    from custom_components.email_events_ha.extractor import _extract_calendar_from_at_suffix
+    assert _extract_calendar_from_at_suffix("Tue May 26, 2026 9pm (BST) (Kitty)") == "Kitty"
+    assert _extract_calendar_from_at_suffix("Mon Jun 1 (UTC)") is None
+    assert _extract_calendar_from_at_suffix(None) is None

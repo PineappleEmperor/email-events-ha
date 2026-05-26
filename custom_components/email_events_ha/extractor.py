@@ -44,6 +44,9 @@ _AT_PLACE_RE = re.compile(
 )
 _AT_PLACE_REJECT = re.compile(r"^\d{1,2}:\d{2}|^(?:least|all|this|that|the|a|an)\b", re.IGNORECASE)
 
+_GCAL_AT_SUFFIX_RE = re.compile(r"\s+@\s+(.+)$")
+_GCAL_TZ_ABBREV_RE = re.compile(r"^[A-Z]{2,5}[+-]?\d*$")
+
 _GCAL_SUBJECT_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"^(?:New event|Invitation):\s+(.+?)(?:\s+@\s+.+)?$", re.IGNORECASE), CHANGE_TYPE_NEW),
     (re.compile(r"^Updated invitation:\s+(.+?)(?:\s+@\s+.+)?$", re.IGNORECASE), CHANGE_TYPE_UPDATE),
@@ -95,6 +98,7 @@ class CalendarChange:
     event_title: str
     change_type: str
     start_datetime: str | None
+    end_datetime: str | None
     organizer: str | None
     calendar_name: str | None
     changed_by: str | None
@@ -202,19 +206,30 @@ def extract_calendar_change(email_data: dict[str, Any]) -> CalendarChange | None
         _LOGGER.debug("No GCal pattern matched subject=%r", subject)
         return None
 
+    at_m = _GCAL_AT_SUFFIX_RE.search(subject.strip())
+    at_suffix: str | None = at_m.group(1) if at_m else None
+
     start_dt = _parse_gcal_when_field(body)
+    end_dt: str | None = None
+    if not start_dt and at_suffix:
+        start_dt, end_dt = _extract_datetimes(at_suffix)
+
     organizer = _parse_gcal_field(body, "organizer") or _parse_gcal_field(body, "who")
-    calendar_name = _parse_gcal_field(body, "calendar")
+    calendar_name = _parse_gcal_field(body, "calendar") or _extract_calendar_from_at_suffix(at_suffix)
     changed_by = (
         _parse_gcal_field(body, "changed by")
         or _parse_gcal_field(body, "modified by")
         or _parse_gcal_field(body, "updated by")
+        or email_data.get("sender_name")
+        or sender_email
+        or None
     )
 
     return CalendarChange(
         event_title=event_title,
         change_type=change_type,
         start_datetime=start_dt,
+        end_datetime=end_dt,
         organizer=organizer,
         calendar_name=calendar_name,
         changed_by=changed_by,
@@ -246,6 +261,16 @@ def _parse_ics_datetimes(body: str) -> tuple[str | None, str | None]:
     start_m = _ICS_DTSTART_RE.search(body)
     end_m = _ICS_DTEND_RE.search(body)
     return _ics_dt(start_m.group(1)) if start_m else None, _ics_dt(end_m.group(1)) if end_m else None
+
+
+def _extract_calendar_from_at_suffix(at_suffix: str | None) -> str | None:
+    """Extract calendar name from the last non-timezone parenthetical in a GCal subject suffix."""
+    if not at_suffix:
+        return None
+    for candidate in reversed(re.findall(r"\(([^)]+)\)", at_suffix)):
+        if not _GCAL_TZ_ABBREV_RE.match(candidate):
+            return candidate
+    return None
 
 
 def _clean_subject(subject: str) -> str:

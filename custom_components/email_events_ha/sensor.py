@@ -171,6 +171,7 @@ class LastCalendarChangeSensor(_BaseEventSensor):
             ATTR_EVENT_TITLE: change.event_title,
             ATTR_CHANGE_TYPE: change.change_type,
             ATTR_START_DATETIME: change.start_datetime,
+            ATTR_END_DATETIME: change.end_datetime,
             ATTR_ORGANIZER: change.organizer,
             ATTR_CALENDAR_NAME: change.calendar_name,
             ATTR_CHANGED_BY: change.changed_by,
