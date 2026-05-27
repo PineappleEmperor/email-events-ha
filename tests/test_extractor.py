@@ -255,9 +255,9 @@ def test_extract_event_gcal_invite_subject_fallback() -> None:
         "uid": "gcalinvite1",
         "subject": "New event: Test @ Tue May 26, 2026 8pm - 9pm (BST) (Kitty)",
         "sender_email": "organizer@gmail.com",
-        "sender_name": "Dan",
+        "sender_name": "Organizer",
         "date": "2026-05-26T19:27:00",
-        "body_text": "Dan has invited you to this event.\n",
+        "body_text": "Organizer has invited you to this event.\n",
     }
     result = extract_event(email)
     assert result is not None
@@ -418,7 +418,7 @@ def test_extract_calendar_change_subject_datetime() -> None:
         "uid": "gcal2",
         "subject": "Canceled event: Testing @ Tue May 26, 2026 9pm - 10pm (BST) (Kitty)",
         "sender_email": "organizer@gmail.com",
-        "sender_name": "Dan",
+        "sender_name": "Organizer",
         "date": "2026-05-26T20:30:00",
         "body_text": "This event has been cancelled.\n",
     }
