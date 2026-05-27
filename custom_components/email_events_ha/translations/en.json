@@ -19,10 +19,13 @@
     "step": {
       "init": {
         "title": "Email Events HA options",
-        "description": "Current sender rules:\n{rules}",
+        "description": "Current sender rules:\n{rules}\n\nEmail name mappings:\n{names}",
         "data": {
-          "sender_filter": "Sender filter (comma-separated emails, leave empty for all)",
+          "sender_filter": "Sender filter",
           "action": "Action"
+        },
+        "data_description": {
+          "sender_filter": "Comma-separated list of sender addresses to process. Leave empty to process all senders. Example: noreply@specsavers.com, booking@clinic.com"
         }
       },
       "add_rule": {
@@ -31,6 +34,9 @@
         "data": {
           "sender": "Sender email address",
           "schema": "Parsing schema"
+        },
+        "data_description": {
+          "sender": "Full sender address as it appears in emails, e.g. noreply@specsavers.com"
         }
       },
       "remove_rule": {
@@ -38,10 +44,30 @@
         "data": {
           "rule_index": "Rule to remove"
         }
+      },
+      "add_name": {
+        "title": "Add email name mapping",
+        "description": "Map an email address to a display name shown in sensor attributes.",
+        "data": {
+          "email": "Email address",
+          "display_name": "Display name"
+        },
+        "data_description": {
+          "email": "Full email address to map, e.g. john@gmail.com",
+          "display_name": "Name to show in sensor attributes, e.g. John"
+        }
+      },
+      "remove_name": {
+        "title": "Remove email name mapping",
+        "data": {
+          "name_index": "Mapping to remove"
+        }
       }
     },
     "error": {
-      "empty_sender": "Sender email address cannot be empty."
+      "empty_sender": "Sender email address cannot be empty.",
+      "empty_email": "Email address cannot be empty.",
+      "empty_name": "Display name cannot be empty."
     }
   }
 }
