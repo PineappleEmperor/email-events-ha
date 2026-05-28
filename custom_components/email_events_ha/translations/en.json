@@ -19,13 +19,18 @@
     "step": {
       "init": {
         "title": "Email Events HA options",
-        "description": "Current sender rules:\n{rules}\n\nEmail name mappings:\n{names}",
+        "description": "Sender filter: {filter}\n\nSender rules:\n{rules}\n\nEmail name mappings:\n{names}",
         "data": {
-          "sender_filter": "Sender filter",
-          "action": "Action"
+          "action": "What would you like to do?"
+        }
+      },
+      "edit_filter": {
+        "title": "Edit sender filter",
+        "data": {
+          "sender_filter": "Sender filter"
         },
         "data_description": {
-          "sender_filter": "Comma-separated list of sender addresses to process. Leave empty to process all senders. Example: noreply@specsavers.com, booking@clinic.com"
+          "sender_filter": "Comma-separated sender addresses to process. Leave empty to process all senders. Example: noreply@specsavers.com, booking@clinic.com"
         }
       },
       "add_rule": {

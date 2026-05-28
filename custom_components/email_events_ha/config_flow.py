@@ -31,7 +31,7 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
-_ACTION_SAVE = "save"
+_ACTION_EDIT_FILTER = "edit_filter"
 _ACTION_ADD = "add_rule"
 _ACTION_REMOVE = "remove_rule"
 _ACTION_ADD_NAME = "add_name"
@@ -107,13 +107,25 @@ class EmailEventsHAOptionsFlow(OptionsFlow):
             config_entry.options.get(CONF_EMAIL_NAMES, [])
         )
 
+    def _save(self) -> ConfigFlowResult:
+        """Commit current pending state as options."""
+        return self.async_create_entry(
+            title="",
+            data={
+                CONF_SENDER_FILTER: self._pending_filter,
+                CONF_SENDER_RULES: self._pending_rules,
+                CONF_EMAIL_NAMES: self._pending_names,
+            },
+        )
+
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Show current settings and action menu."""
         if user_input is not None:
-            self._pending_filter = user_input.get(CONF_SENDER_FILTER, self._pending_filter)
-            action = user_input.get("action", _ACTION_SAVE)
+            action = user_input.get("action", _ACTION_EDIT_FILTER)
+            if action == _ACTION_EDIT_FILTER:
+                return await self.async_step_edit_filter()
             if action == _ACTION_ADD:
                 return await self.async_step_add_rule()
             if action == _ACTION_REMOVE and self._pending_rules:
@@ -122,14 +134,6 @@ class EmailEventsHAOptionsFlow(OptionsFlow):
                 return await self.async_step_add_name()
             if action == _ACTION_REMOVE_NAME and self._pending_names:
                 return await self.async_step_remove_name()
-            return self.async_create_entry(
-                title="",
-                data={
-                    CONF_SENDER_FILTER: self._pending_filter,
-                    CONF_SENDER_RULES: self._pending_rules,
-                    CONF_EMAIL_NAMES: self._pending_names,
-                },
-            )
 
         rules_desc = "\n".join(
             f"• {r[CONF_RULE_SENDER]} → {r[CONF_RULE_SCHEMA]}"
@@ -141,8 +145,10 @@ class EmailEventsHAOptionsFlow(OptionsFlow):
             for n in self._pending_names
         ) or "None configured"
 
+        filter_desc = self._pending_filter or "All senders"
+
         actions = {
-            _ACTION_SAVE: "Save changes",
+            _ACTION_EDIT_FILTER: "Edit sender filter",
             _ACTION_ADD: "Add sender rule",
             _ACTION_ADD_NAME: "Add email name mapping",
         }
@@ -154,12 +160,28 @@ class EmailEventsHAOptionsFlow(OptionsFlow):
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(
-                {
-                    vol.Optional(CONF_SENDER_FILTER, default=self._pending_filter): str,
-                    vol.Required("action", default=_ACTION_SAVE): vol.In(actions),
-                }
+                {vol.Required("action", default=_ACTION_EDIT_FILTER): vol.In(actions)}
             ),
-            description_placeholders={"rules": rules_desc, "names": names_desc},
+            description_placeholders={
+                "filter": filter_desc,
+                "rules": rules_desc,
+                "names": names_desc,
+            },
+        )
+
+    async def async_step_edit_filter(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Edit the sender filter."""
+        if user_input is not None:
+            self._pending_filter = user_input.get(CONF_SENDER_FILTER, "")
+            return self._save()
+
+        return self.async_show_form(
+            step_id="edit_filter",
+            data_schema=vol.Schema(
+                {vol.Optional(CONF_SENDER_FILTER, default=self._pending_filter): str}
+            ),
         )
 
     async def async_step_add_rule(
@@ -180,7 +202,7 @@ class EmailEventsHAOptionsFlow(OptionsFlow):
                 self._pending_rules.append(
                     {CONF_RULE_SENDER: sender, CONF_RULE_SCHEMA: user_input[CONF_RULE_SCHEMA]}
                 )
-                return await self.async_step_init()
+                return self._save()
 
         return self.async_show_form(
             step_id="add_rule",
@@ -205,7 +227,7 @@ class EmailEventsHAOptionsFlow(OptionsFlow):
         if user_input is not None:
             idx = int(user_input["rule_index"])
             self._pending_rules.pop(idx)
-            return await self.async_step_init()
+            return self._save()
 
         rule_options = {
             str(i): f"{r[CONF_RULE_SENDER]} → {r[CONF_RULE_SCHEMA]}"
@@ -237,7 +259,7 @@ class EmailEventsHAOptionsFlow(OptionsFlow):
                     n for n in self._pending_names if n.get(CONF_NAME_EMAIL) != email
                 ]
                 self._pending_names.append({CONF_NAME_EMAIL: email, CONF_NAME_DISPLAY: name})
-                return await self.async_step_init()
+                return self._save()
 
         return self.async_show_form(
             step_id="add_name",
@@ -260,7 +282,7 @@ class EmailEventsHAOptionsFlow(OptionsFlow):
         if user_input is not None:
             idx = int(user_input["name_index"])
             self._pending_names.pop(idx)
-            return await self.async_step_init()
+            return self._save()
 
         name_options = {
             str(i): f"{n[CONF_NAME_EMAIL]} → {n[CONF_NAME_DISPLAY]}"

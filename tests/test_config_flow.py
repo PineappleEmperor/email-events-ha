@@ -102,13 +102,19 @@ def _make_options_flow(
 
 @pytest.mark.asyncio
 async def test_options_flow_save() -> None:
-    """Submitting save action writes options."""
+    """Edit filter step saves options immediately on submit."""
     flow = _make_options_flow(sender_filter="old@example.com")
-    result = await flow.async_step_init(
-        user_input={CONF_SENDER_FILTER: "new@example.com", "action": "save"}
-    )
+    result = await flow.async_step_edit_filter(user_input={CONF_SENDER_FILTER: "new@example.com"})
     assert result["type"] == "create_entry"
     assert result["data"][CONF_SENDER_FILTER] == "new@example.com"
+
+
+@pytest.mark.asyncio
+async def test_options_flow_edit_filter() -> None:
+    """Edit filter step updates pending filter."""
+    flow = _make_options_flow(sender_filter="old@example.com")
+    await flow.async_step_edit_filter(user_input={CONF_SENDER_FILTER: "new@example.com"})
+    assert flow._pending_filter == "new@example.com"
 
 
 @pytest.mark.asyncio
@@ -117,7 +123,7 @@ async def test_options_flow_add_rule() -> None:
     flow = _make_options_flow()
 
     # Trigger add_rule step
-    await flow.async_step_init(user_input={CONF_SENDER_FILTER: "", "action": "add_rule"})
+    await flow.async_step_init(user_input={"action": "add_rule"})
 
     # Submit the add_rule form
     await flow.async_step_add_rule(
@@ -162,12 +168,11 @@ async def test_options_flow_remove_rule() -> None:
 
 @pytest.mark.asyncio
 async def test_options_flow_filter_preserved_across_add() -> None:
-    """Sender filter value is preserved when navigating to add_rule step."""
+    """Filter set via edit_filter is preserved when navigating to add_rule."""
     flow = _make_options_flow()
 
-    await flow.async_step_init(
-        user_input={CONF_SENDER_FILTER: "kept@example.com", "action": "add_rule"}
-    )
+    await flow.async_step_edit_filter(user_input={CONF_SENDER_FILTER: "kept@example.com"})
+    await flow.async_step_init(user_input={"action": "add_rule"})
 
     assert flow._pending_filter == "kept@example.com"
 

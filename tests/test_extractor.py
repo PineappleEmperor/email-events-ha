@@ -429,7 +429,7 @@ def test_extract_calendar_change_subject_datetime() -> None:
     assert result.start_datetime is not None and "21:00:00" in result.start_datetime
     assert result.end_datetime is not None and "22:00:00" in result.end_datetime
     assert result.calendar_name == "Kitty"
-    assert result.changed_by == "Dan"
+    assert result.changed_by == "Organizer"
 
 
 def test_extract_calendar_change_changed_by_fallback_email() -> None:
